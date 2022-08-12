@@ -30,6 +30,8 @@ library(lubridate) #work with dates
 library(hms) #work with hours
 library(ggplot2) #graphs
 library(scales) #scales for graphs
+library(ggchicklet) #geom chicklet
+#hrbrthemes::import_roboto_condensed()
 library(gtExtras) #fancy tables
 library(gt) #fancy tables
 library(webshot) #exporting fancy tables to jpg
