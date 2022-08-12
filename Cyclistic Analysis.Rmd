@@ -25,7 +25,6 @@ This file is intended to only showcase the R code used to clean and analyze the 
 
 ```{r}
 setwd("C:/Users/gashi/Desktop/Google Data Analytics Case Study (Cyclistic)/Raw Data")
-library(readr) #read csv files
 library(tidyverse) #transform data
 library(lubridate) #work with dates
 library(hms) #work with hours
@@ -35,7 +34,6 @@ library(gtExtras) #fancy tables
 library(gt) #fancy tables
 library(webshot) #exporting fancy tables to jpg
 #webshot::install_phantomjs()
-library(data.table) #creating data tables
 ```
 
 ### Importing Data
@@ -152,6 +150,7 @@ df3 %>%
 #### General Infosheet
 ```{r}
 #Infosheet Table
+library(data.table) #creating data tables
 atb <- c("Most Rides by Type", "Average Ride Length", "Busiest Month", "Busiest Weekday", "Most Used Bike")
 info <- c("Member", "20 Minutes", "July", "Saturday", "Classic" )
 infosheet <- data.table(atb, info)
