@@ -1,0 +1,321 @@
+---
+title: "Cyclistic Analysis"
+author: "Gentian Gashi"
+date: "2022-08-12"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = "C:/Users/gashi/Desktop/Google Data Analytics Case Study (Cyclistic)/Raw Data")
+```
+
+# Cyclistic Business Case Analysis
+
+In this scenario I am a junior data analyst at the fictional company Cyclistic and I have been tasked with the overall goal of designing marketing strategies for Cyclistic, a bike sharing company. Cyclistic has provided me with a large dataset of bike rides that have happened over the past 12 months. With this analysis, I will show the different types rides that are recorded by Cyclistic, who rides the bikes, and more descriptive statistics.
+
+This file is intended to only showcase the R code used to clean and analyze the data. For an in-depth analysis, check out my Medium page, referenced in the README file on Git.
+
+***
+
+## Data Processing and Cleaning
+### Setting Work Directory and Loading Packages
+
+```{r}
+setwd("C:/Users/gashi/Desktop/Google Data Analytics Case Study (Cyclistic)/Raw Data")
+library(readr) #read csv files
+library(tidyverse) #transform data
+library(lubridate) #work with dates
+library(hms) #work with hours
+library(ggplot2) #graphs
+library(scales) #scales for graphs
+library(gtExtras) #fancy tables
+library(gt) #fancy tables
+library(webshot) #exporting fancy tables to jpg
+#webshot::install_phantomjs()
+library(data.table) #creating data tables
+```
+
+### Importing Data
+
+Since there are several datasets, instead of importing them manually, I will do so with a for loop. However, I will import them as individual files because the names of the columns might differ between files and that would present a problem when trying to import them in one file.
+
+```{r}
+#Read files named xyz1111.csv, xyz2222.csv, etc. in working directory
+filenames <- list.files(pattern="*csv")
+
+##Create list of data frame names without the ".csv" part 
+names <-substr(filenames,1,21)
+
+###Load all files
+for(i in names){
+    filepath <- file.path("C:/Users/gashi/Desktop/Google Data Analytics Case Study (Cyclistic)/Raw Data",paste(i,".csv",sep=""))
+    assign(i, read.csv(filepath, sep = ",")) #the data is read in via read.csv and to change the column types, add col_type for each variable
+}
+```
+
+### Checking the column names to see if they match and allow appending the data
+```{r}
+colnames(`202108-divvy-tripdata`)
+colnames(`202109-divvy-tripdata`)
+colnames(`202110-divvy-tripdata`)
+colnames(`202111-divvy-tripdata`)
+colnames(`202112-divvy-tripdata`)
+colnames(`202201-divvy-tripdata`)
+colnames(`202202-divvy-tripdata`)
+colnames(`202203-divvy-tripdata`)
+colnames(`202204-divvy-tripdata`)
+colnames(`202205-divvy-tripdata`)
+colnames(`202206-divvy-tripdata`)
+colnames(`202207-divvy-tripdata`)
+```
+
+### Appending the Data
+```{r}
+# Appending the data
+cyclist <- rbind(`202108-divvy-tripdata`, `202109-divvy-tripdata`, `202110-divvy-tripdata`, `202111-divvy-tripdata`,
+                 `202112-divvy-tripdata`, `202201-divvy-tripdata`, `202202-divvy-tripdata`, `202203-divvy-tripdata`,
+                 `202204-divvy-tripdata`, `202205-divvy-tripdata`, `202206-divvy-tripdata`, `202207-divvy-tripdata`)
+
+str(cyclist) # seeing the column types
+```
+
+### Cleaning and Inspecting the Data
+```{r}
+#Removing unnecessary columns
+df2 <- cyclist %>% 
+    select(-start_lat, -start_lng, -end_lat, -end_lng, -start_station_name, -start_station_id, -end_station_name, -end_station_id)
+
+
+colnames(df2)
+nrow(df2)
+dim(df2)
+head(df2)
+str(df2)
+summary(df2)
+df2 %>% count(member_casual)
+df2 %>% count(rideable_type)
+```
+
+### Generating Necessary Variables
+```{r}
+df3 <- df2 %>% 
+    mutate(year = year(started_at),
+           month = month(started_at, label = T),
+           day = day(started_at),
+           day_of_week = wday(started_at, week_start = getOption("lubridate.week.start", 1), label = T), #starting the week from Monday (default Sunday - 7)
+           date = date(started_at),
+           ride_length = round(difftime(ymd_hms(ended_at), ymd_hms(started_at), units = "mins"), digits = 1))
+```
+
+### Final Cleaning of the Data
+```{r}
+df3 <- na.omit(df3) #remove rows with NA values
+df3 <- distinct(df3) #remove duplicate rows 
+df3 <- df3[!(df3$ride_length <=0),] #remove where ride_length is 0 or negative
+```
+
+***
+
+## Descriptive Analysis
+### Analysis
+```{r}
+#Number of rides per type of member
+df3 %>% 
+    group_by(member_casual) %>% 
+    summarize(count=n()) %>% 
+    mutate(percent = count/sum(count)*100)
+
+#Summary statistics per type of member
+df3 %>% 
+    group_by(member_casual) %>% 
+    summarize(mean = mean(ride_length),
+              median = median(ride_length),
+              min = min(ride_length),
+              max = max(ride_length))
+
+#Average ride time by each day for members vs casual users
+df3 %>% 
+    group_by(member_casual, day_of_week) %>% 
+    summarize(mean = mean(ride_length))
+
+#Average ride time by each day for members vs casual users
+df3 %>% 
+    group_by(member_casual, day_of_week) %>% 
+    summarize(number_of_rides=n(),
+              mean_ride_length = mean(ride_length))
+```
+
+### Visualisations
+#### General Infosheet
+```{r}
+#Infosheet Table
+atb <- c("Most Rides by Type", "Average Ride Length", "Busiest Month", "Busiest Weekday", "Most Used Bike")
+info <- c("Member", "20 Minutes", "July", "Saturday", "Classic" )
+infosheet <- data.table(atb, info)
+
+
+infosheet %>% 
+    gt() %>% 
+    gt_theme_guardian() %>% 
+    tab_style(locations = cells_body( #changes cells
+        rows = everything(),
+        columns = "info"
+    ),
+    style = list(cell_text(color = "#7d3ac1",
+                           size = "medium",
+                           weight = "bold"))
+    ) %>% 
+    tab_options(column_labels.hidden = TRUE)
+```
+
+#### Pie Chart of Total Rides
+```{r}
+#Pie chart of Total Rides
+df3 %>% 
+    group_by(member_casual) %>% 
+    summarize(number_of_rides = n()) %>% 
+    ggplot(aes(x="", y=number_of_rides, fill=member_casual)) +
+    geom_col(alpha=0.7, width=0.3) +
+    coord_polar(theta = "y") + #makes the pie chart
+    scale_fill_manual(values=c("#ea7369","#7d3ac1"), breaks = c("casual", "member"), labels=c("Casual", "Member")) +
+    ggtitle("Total Rides by Subscription") +
+    annotate("text", x = 0, y = 0, label = "5.9M Total Rides", colour="black", fontface="bold", size=7) + #adds text in the middle
+    theme_minimal() +
+    theme(legend.title = element_blank(),
+          legend.text = element_text(face="bold"),
+          axis.title = element_blank(),
+          axis.text = element_blank(),
+          panel.grid.major = element_blank(), 
+          panel.grid.minor = element_blank(),
+          plot.margin = margin(1,1,1.5,1.2, "cm"),
+          plot.title = element_text(face="bold"))
+```
+
+#### Total Rides Table
+```{r}
+#Total Rides Table
+df3 %>% 
+    group_by(member_casual) %>% 
+    summarize(count=n()) %>% 
+    mutate(percent = paste0(round((count/sum(count)*100), 1), "%"),
+           count2 = label_comma()(count),
+           member_casual = case_when(member_casual == "casual" ~ "Casual",
+                                     member_casual == "member" ~ "Member")) %>%
+    select(-count) %>%
+    relocate(count2, .after=member_casual) %>% 
+    rename(Subscriber = member_casual,
+           'Total Rides' = count2,
+           'Percentage of Total' = percent) %>% 
+    gt() %>% 
+    gt_theme_guardian() %>% 
+    data_color(
+        columns = 'Percentage of Total', colors = c("#7d3ac1"))
+```
+
+#### Average Ride Length Table
+```{r}
+#Average Ride Length Table
+df3 %>% 
+    group_by(member_casual) %>% 
+    summarize(mean=mean(ride_length)) %>% 
+    mutate(
+        avg = paste0(                    #paste0 pastes better than just paste
+            round(mean, 1)," ","Minutes"
+        ),
+        member_casual = case_when(member_casual == "casual" ~ "Casual",
+                                  member_casual == "member" ~ "Member")
+    ) %>%
+    select(-mean) %>% 
+    rename(Subscriber = member_casual,
+           'Avg. Ride Length' = avg) %>% 
+    gt() %>% 
+    gt_theme_guardian() %>% 
+    data_color(
+        columns = 'Avg. Ride Length', colors = c("#7d3ac1"))
+```
+
+
+#### Bar Graph of Total Rides per Weekday
+```{r}
+#Bar Chart of total rides by day of week (value labels are shown fully)    
+df3 %>% 
+    group_by(member_casual, day_of_week) %>% 
+    summarize(number_of_rides = n()) %>% 
+    ggplot(aes(x=day_of_week, y=number_of_rides, fill=member_casual)) +
+    geom_chicklet(position = "stack", alpha=0.7, radius = grid::unit(5, "mm"), width = 0.6) +
+    scale_y_continuous(labels = unit_format(unit = "K", scale = 1e-3)) +
+    #    scale_fill_discrete(labels=c("Casual", "Member")) +
+    scale_fill_manual(values=c("#ea7369","#7d3ac1"), breaks = c("casual", "member"), labels=c("Casual", "Member")) +
+    geom_text(aes(label = label_comma()(number_of_rides)), position = position_stack(vjust = 1.05), colour="black", fontface = "bold") + #label values shown fully and with a comma
+    ggtitle("Total Rides by Subscription and Day of Week") +
+    labs(x = "Day of the week",
+         y = "Number of rides",
+         fill = "Type of Member") +
+    theme_minimal() +
+    theme(legend.title = element_blank(),
+          legend.text = element_text(face="bold"),
+          axis.title = element_blank(),
+          axis.text = element_text(face="bold"),
+          panel.grid.major = element_blank(), 
+          panel.grid.minor = element_blank(),
+          plot.margin = margin(1,1,1.5,1.2, "cm"),
+          plot.title = element_text(face="bold"))
+```
+
+#### Bar Graph of Total Rides per Bike Type
+```{r}
+#Bar Chart of total rides by bike type (value labels are shown fully)    
+df3 %>% 
+    group_by(member_casual, rideable_type) %>% 
+    summarize(number_of_rides = n()) %>% 
+    ggplot(aes(x=rideable_type, y=number_of_rides, fill=member_casual)) +
+    geom_chicklet(position = "stack", alpha=0.7, radius = grid::unit(5, "mm"), width = 0.6) +
+    coord_flip() +
+    scale_y_continuous(labels = unit_format(unit = "K", scale = 1e-3)) +
+    scale_fill_manual(values=c("#ea7369","#7d3ac1"), breaks = c("casual", "member"), labels=c("Casual", "Member")) +
+    scale_x_discrete(labels = c("Classic Bike", "Docked Bike", "Electric Bike")) + #labels axis ticks manually 
+    geom_text(aes(label = label_comma()(number_of_rides)), position = position_stack(vjust = 0.5), colour="black", fontface="bold") + #label values shown fully
+    ggtitle("Total Rides by Subscription and Bike Type") +
+    labs(x = "Bike Type",
+         y = "Number of rides",
+         fill = "Type of Member") +
+    theme_minimal() +
+    theme(legend.title = element_blank(),
+          legend.text = element_text(face="bold"),
+          axis.title = element_blank(),
+          axis.text = element_text(face="bold"),
+          panel.grid.major = element_blank(), 
+          panel.grid.minor = element_blank(),
+          plot.margin = margin(1,1,1.5,1.2, "cm"),
+          plot.title = element_text(face="bold"))
+```
+
+#### Bar Graph of Total Rides per Month
+```{r}
+#Bar Chart of total rides by month (value labels are shown fully)    
+df3 %>% 
+    group_by(member_casual, month) %>% 
+    summarize(number_of_rides = n()) %>% 
+    ggplot(aes(x=month, y=number_of_rides, fill=member_casual)) +
+    geom_chicklet(position = "stack", alpha=0.7, radius = grid::unit(3, "mm"), width = 0.6) +
+    scale_y_continuous(labels = unit_format(unit = "K", scale = 1e-3)) + #transforms axis label in thousands
+    scale_fill_manual(values=c("#ea7369","#7d3ac1"), breaks = c("casual", "member"), labels=c("Casual", "Member")) +
+    geom_text(aes(label = label_comma()(number_of_rides)), position = position_stack(vjust = 0.5), colour="black", fontface="bold") + #label values shown fully
+    ggtitle("Total Rides by Month") +
+    labs(x = "Month",
+         y = "Number of rides",
+         fill = "Type of Member") +
+    theme_minimal() +
+    theme(legend.title = element_blank(),
+          legend.text = element_text(face="bold"),
+          axis.title = element_blank(),
+          axis.text = element_text(face="bold"),
+          panel.grid.major = element_blank(), 
+          panel.grid.minor = element_blank(),
+          plot.margin = margin(1,1,1.5,1.2, "cm"),
+          plot.title = element_text(face="bold"))
+```
+
